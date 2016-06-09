@@ -19014,7 +19014,7 @@ class mPDF
 				$this->addColBreaksForWidows($expectedWidowLines, true);
 				$this->addColBreaksForOrphans($expectedOrphanLines, true);
 			} else {
-				$this->debugLog("Attempting to add a PAGE BREAK HERE", "red");
+				$this->debugLog("Attempting to add a PAGE BREAK HERE. Widows: $expectedWidowLines Orphans: $expectedOrphanLines", "red");
 				$this->addPageBreaksForWidows($expectedWidowLines, true);
 				$this->addPageBreaksForOrphans($expectedOrphanLines, true);
 			}
@@ -32044,11 +32044,11 @@ class mPDF
 		$spaceAvailable = $this->getPageBlockSpaceAvailable();
 		$linesAvailable = $this->getPageBlockLinesAvailable(); 
 		$expectedWidowLines = ($linesRequired >= $linesAvailable) ? $linesAvailable : 0;
-		/*
-		if (($linesRequired < $this->minWidowLines) && ($linesRequired >= $linesAvailable)) {
+		
+		if (($linesRequired <= $this->minWidowLines) && ($linesRequired >= $linesAvailable)) {
 			$expectedWidowLines = $linesRequired;
 		}
-		*/
+	
 		
 		$this->debugLog("  Getting Expected Block Widows");
 		$this->debugLog("	lines required in this block: $linesRequired, lines available on current page: $linesAvailable");
@@ -32090,7 +32090,7 @@ class mPDF
 		$this->debugLog(print_r($this->flowingBlockAttr, true), "yellow");
 		$this->debugLog("expectedWidowLines: $expectedWidowLines, minWidowLines: " . $this->minWidowLines);
 
-		if (($expectedWidowLines) && $expectedWidowLines < $this->minWidowLines) {
+		if (($expectedWidowLines) && $expectedWidowLines <= $this->minWidowLines) {
 			if ($this->onLastColumn()) {
 				// add a page and reset current column back to 0
 				$this->debugLog('GONNA ADD PAGE BREAK HERE', 'yellow');
@@ -32128,7 +32128,7 @@ class mPDF
 		if ($this->InFooter) {
 			return false;
 		}
-		if (($expectedWidowLines) && ($expectedWidowLines < $this->minWidowLines)) {
+		if (($expectedWidowLines) && ($expectedWidowLines <= $this->minWidowLines)) {
 
 			// debug column vars
 			$NbCol = $this->NbCol;
@@ -32206,7 +32206,7 @@ class mPDF
 		if ($this->InFooter) {
 			return false;
 		}
-		if (($expectedOrphanLines) && $expectedOrphanLines < $this->minOrphanLines) {
+		if (($expectedOrphanLines) && $expectedOrphanLines <= $this->minOrphanLines) {
 			if ($this->onLastColumn()) {
 				// add a page and reset current column back to 0
 				$this->debugLog('GONNA ADD PAGE BREAK HERE', 'yellow');
@@ -32243,7 +32243,7 @@ class mPDF
 			return false;
 		}
 
-		if (($expectedOrphanLines) && $expectedOrphanLines < $this->minOrphanLines) {
+		if (($expectedOrphanLines) && $expectedOrphanLines <= $this->minOrphanLines) {
 
 			// debug column vars
 			$NbCol = $this->NbCol;
