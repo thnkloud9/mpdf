@@ -8405,7 +8405,7 @@ class mPDF
 						$charspacing = $this->charspacing; //Character Spacing
 						$this->ResetSpacing();
 
-						$this->debugLog("Adding Page Here - IN WriteFlowingBlock", "yellow");
+						// UNCOMMENT THIS $this->debugLog("Adding Page Here - IN WriteFlowingBlock", "yellow");
 						$this->AddPage($this->CurOrientation);
 
 						$this->x = $this->bak_x;
