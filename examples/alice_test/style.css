@@ -4,14 +4,14 @@
 
   margin-left: 1.5cm; 
   margin-right: 1.5cm;
-  margin-top: 1.875cm; 
-  margin-bottom: 2.8cm;
+  margin-top: 1.2cm; 
+  margin-bottom: 1.2cm;
 
-  margin-footer: 12mm;
+  margin-footer: 10mm;
   odd-footer-name: html_footer-right;
   even-footer-name: html_footer-left;
   
-  margin-header: 8mm;
+  margin-header: 10mm;
   odd-header-name: html_header-right;
   even-header-name: html_header-left;         
 }
