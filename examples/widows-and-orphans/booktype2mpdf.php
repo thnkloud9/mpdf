@@ -1,7 +1,7 @@
 <?php
 
 $file_input  = "mpdf-body-orphanstest.html";
-$file_output = "output.pdf";
+$file_output = "output_2.pdf";
 
 /* Include mPDF library */
 require_once __DIR__ . '/../../vendor/autoload.php';

@@ -7647,14 +7647,23 @@ class mPDF
 
 	function EstimateFlowingBlockWriteLines($s, $sOTLdata)
 	{
+
 		/**
 		 * We will run the writes on a cloned version of the
 		 * current document so that we can estimate how many lines
 		 * are required before actually printing the lines
 		 */
 		$mock = clone $this;
+        // MARKHERE
+        $this->debugLog("CONTENT WITH: " . $mock->flowingBlockAttr['contentWidth'] . " maxWidth: " . $mock->flowingBlockAttr['width'] . " stackHeight: " . $mock->flowingBlockAttr['height'], "yellow");
 		$mock->WriteFlowingBlock($s, $sOTLdata, true);
 		$lineCount = $mock->flowingBlockAttr['lineCount']; 
+        // if lineCOunt is zero, convert width to percent and send fraction.
+        if ($lineCount == 0) {
+            $lineCount = ($mock->flowingBlockAttr['contentWidth']/$mock->flowingBlockAttr['width']);
+        }
+// check page 70 of http://localhost:8000/examples/alice_test/output.pdf, there is a line break happening
+// that is not being accounted for in $lineCount somehow.  its a automatically added break
 
 		$BeforeCol = $this->CurrCol;
 		$AfterCol = $mock->CurrCol;
@@ -7669,11 +7678,6 @@ class mPDF
 			$this->flowingBlockAttr['expect_col_change'] = true;
 		}
 
-        // a page break was added in drafting, so lets add it now
-        if ($mock->flowingBlockAttr['orphan_break_added']) {
-            $this->debugLog("----------------------------------------MOCK Added a Page Here", "yellow");
-        }
-        
 		$this->flowingBlockAttr['expected_lines'] += $lineCount;
 
 		return $lineCount;
@@ -8195,12 +8199,12 @@ class mPDF
 				// or - Next character ($c) is suitable to add as overhanging or squeezed punctuation, or Oikomi, as set above by:
 				// 1) CJK Overflowing a) punctuation or b) Oikomi
 				// in which case $breakfound==1 and NOT array
-
 				if (!is_array($breakfound)) {
 					$savedFont = $this->saveFont();
 					if (!empty($sOTLdata)) {
 						$savedOTLdata = $this->otl->splitOTLdata($cOTLdata[(count($cOTLdata) - 1)], mb_strlen($currContent, $this->mb_enc));
 					}
+
 				}
 
 				if ($content[count($content) - 1] == '' && !isset($this->objectbuffer[count($content) - 1])) {
@@ -18922,6 +18926,7 @@ class mPDF
 
 		// Added - Otherwise <div><div><p> did not output top margins/padding for 1st/2nd div
 		if ($array_size == 0) {
+            $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 			$this->finishFlowingBlock(true);
 		} // true = END of flowing block
 		// mPDF 6
@@ -19014,8 +19019,15 @@ class mPDF
                 if (!$this->flowingBlockAttr['is_table']) {
 				    $linesRequired += $this->EstimateFlowingBlockWriteLines($vetor[0], $vetor[18]);
 				    $this->debugLog("\n\nvetor0: " . print_r($vetor[0], true) . "\n");
+
+                    // MARKHERE add lines if finishFlowingBlock would have been called
+                    if ($i == ($array_size - 1)) {
+                        $linesRequired++;
+                        $this->debugLog("THis SHOULD be the last write block so adding 1 last line here", "yellow");
+                    }
                 }
 			}
+            $linesRequired = round($linesRequired);
 			$this->debugLog("  Writes in this Block: $array_size, Lines in this Block: $linesRequired");
 
 			/**
@@ -19062,6 +19074,7 @@ class mPDF
 			if (empty($vetor[0]) && !($vetor[0] === '0') && empty($vetor[7])) { //Ignore empty text and not carrying an internal link
 				//Check if it is the last element. If so then finish printing the block
 				if ($i == ($array_size - 1)) {
+                    $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 					$this->finishFlowingBlock(true);
 				} // true = END of flowing block
 				continue;
@@ -19135,6 +19148,7 @@ class mPDF
 				if (empty($vetor[0])) { //Ignore empty text
 					//Check if it is the last element. If so then finish printing the block
 					if ($i == ($array_size - 1)) {
+                        $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 						$this->finishFlowingBlock(true);
 					} // true = END of flowing block
 					continue;
@@ -19183,10 +19197,12 @@ class mPDF
 						if ($table_draft) {
 							$this->y += $this->table[($level + 1)][$objattr['nestedcontent']]['h']; // nested table height
 							$this->debugLog("Setting y to: " . $this->y, "red");
+                            $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 							$this->finishFlowingBlock(false, 'nestedtable');
 						} else {
 
 							$cell = &$table['cells'][$objattr['row']][$objattr['col']];
+                            $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 							$this->finishFlowingBlock(false, 'nestedtable');
 							$save_dw = $this->divwidth;
 							$save_buffer = $this->cellBorderBuffer;
@@ -19258,6 +19274,7 @@ class mPDF
 					$oldpage = $this->page;
 					$this->OldCol = $this->CurrCol;
 					if (($skipln == 1 || $skipln == -2) && !isset($objattr['float'])) {
+                        $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 						$this->finishFlowingBlock(false, $objattr['type']);
 						$this->debugLog('newFlowingBlock starts here', "yellow"); 
 						$this->newFlowingBlock($this->divwidth, $this->divheight, $align, $is_table, $blockstate, false, $blockdir, $table_draft);
@@ -19462,6 +19479,7 @@ class mPDF
 
 				if ($vetor[0] == "\n") { //We are reading a <BR> now turned into newline ("\n")
 					if ($this->flowingBlockAttr['content']) {
+                        $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 						$this->finishFlowingBlock(false, 'br');
 					} elseif ($is_table) {
 						$this->y+= $this->_computeLineheight($this->cellLineHeight);
@@ -19536,6 +19554,7 @@ class mPDF
 
 			//Check if it is the last element. If so then finish printing the block
 			if ($i == ($array_size - 1)) {
+                $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 				$this->finishFlowingBlock(true); // true = END of flowing block
 
 				// Added to correct for OddEven Margins

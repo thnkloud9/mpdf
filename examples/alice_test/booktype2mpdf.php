@@ -2,6 +2,7 @@
 
 $file_input  = "alice-in-wonderland.html";
 $file_output = "output.pdf";
+//$file_output = "unprocessed.pdf";
 
 /* Include mPDF library */
 require_once __DIR__ . '/../../vendor/autoload.php';
@@ -28,7 +29,6 @@ if (file_exists("style.css")) {
 }
 
 $mpdf->WriteHTML($html);
-
-//$mpdf->Output($file_output);
-$mpdf->Output();
+$mpdf->Output($file_output);
+//$mpdf->Output();
 exit;
