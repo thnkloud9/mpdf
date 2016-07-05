@@ -1,7 +1,8 @@
 <?php
 
-$file_input  = "mpdf-body-orphanstest.html";
-$file_output = "output_2.pdf";
+$file_input  = isset($argv[1]) ? $argv[1] : "input.html";
+$file_output = isset($argv[2]) ? $argv[2] : "output.pdf";
+$file_style = isset($argv[3]) ? $argv[3] : "style.css";
 
 /* Include mPDF library */
 require_once __DIR__ . '/../../vendor/autoload.php';
@@ -22,8 +23,8 @@ $mpdf->h2toc = array();
 $mpdf->h2bookmarks = array('H1' => 0, 'H2' => 1, 'H3' => 2);
 
 /* Add Styling */
-if (file_exists("style.css")) {
-    $css_data = file_get_contents("style.css");
+if (file_exists($file_style)) {
+    $css_data = file_get_contents($file_style);
     $mpdf->WriteHTML($css_data, 1);
 }
 

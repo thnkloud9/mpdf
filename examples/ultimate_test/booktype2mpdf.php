@@ -29,6 +29,6 @@ if (file_exists("basicStyle.css")) {
 
 $mpdf->WriteHTML($html);
 
-//$mpdf->Output($file_output);
-$mpdf->Output();
+$mpdf->Output($file_output);
+//$mpdf->Output();
 exit;

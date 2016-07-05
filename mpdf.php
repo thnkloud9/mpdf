@@ -6552,6 +6552,8 @@ class mPDF
 		 * printing this block content
 		 **/ 
         // DO NOT break up tables
+        // THIS IS finishFlowingBlock FUNCTION
+        // WE ARE NOT DRAFTING HERE
         if (!$this->flowingBlockAttr['is_table']) {
 		    $expectedOrphanLines = $this->getExpectedBlockOrphanCount();
 		    $expectedWidowLines = $this->getExpectedBlockWidowCount();
@@ -7658,12 +7660,10 @@ class mPDF
         $this->debugLog("CONTENT WITH: " . $mock->flowingBlockAttr['contentWidth'] . " maxWidth: " . $mock->flowingBlockAttr['width'] . " stackHeight: " . $mock->flowingBlockAttr['height'], "yellow");
 		$mock->WriteFlowingBlock($s, $sOTLdata, true);
 		$lineCount = $mock->flowingBlockAttr['lineCount']; 
-        // if lineCOunt is zero, convert width to percent and send fraction.
+        // if lineCount is zero, convert width to fraction and add to the existing count.
         if ($lineCount == 0) {
             $lineCount = ($mock->flowingBlockAttr['contentWidth']/$mock->flowingBlockAttr['width']);
         }
-// check page 70 of http://localhost:8000/examples/alice_test/output.pdf, there is a line break happening
-// that is not being accounted for in $lineCount somehow.  its a automatically added break
 
 		$BeforeCol = $this->CurrCol;
 		$AfterCol = $mock->CurrCol;
@@ -8749,6 +8749,13 @@ class mPDF
 			    // another character will fit, so add it on
                 if (preg_match('~\R~', $s)) {
                     // if this is a carraige return increase lineCount
+                    // this can be an issue indicating that there are several paragraphs in a single <p> tag
+                    // widow / orphan processing will not work in this case and may cause unexpected and incorrect
+                    // line breaks.  
+                    //
+                    // possibly the break could be used to reset the line count, but this can't always be trusted
+                    //
+                    // the best solution, however, is correct the html and use separate <p> tags for each paragraph
                     $this->debugLog("THERE IS A <br> in this block", "yellow");
                     $lineCount++;
                 }
@@ -19035,6 +19042,8 @@ class mPDF
 			 * printing this block content
 			 **/
             // DO NOT break up tables
+            // THIS IS printbuffer FUNCTION
+            // WE ARE DRAFTING HERE
             if (!$this->flowingBlockAttr['is_table']) {
 			    $expectedOrphanLines = $this->getExpectedBlockOrphanCount($linesRequired);
 			    $expectedWidowLines = $this->getExpectedBlockWidowCount($linesRequired);
@@ -32079,8 +32088,9 @@ class mPDF
 	function getExpectedBlockWidowCount($linesRequired = null)
 	{
 		if (!$linesRequired) {
-			$lineCount = max($this->flowingBlockAttr['lineCount'], 0); 
-			//$linesRequired = $lineCount+1;
+// MARKHERE - this does not work for blocks with a single write (also see function below)
+			//$linesCount = max($this->flowingBlockAttr['lineCount'], 0); 
+			$linesRequired = (max($this->flowingBlockAttr['lineCount'], 0) + 1);  
 		}
 
 		$lineHeight = max($this->divheight, $this->flowingBlockAttr['height']);
@@ -32110,8 +32120,9 @@ class mPDF
 	function getExpectedBlockOrphanCount($linesRequired = null)
 	{
 		if (!$linesRequired) {
-			$lineCount = max($this->flowingBlockAttr['lineCount'], 0); 
-			//$linesRequired = $lineCount+1;
+// MARKHERE - this does not work for blocks with a single write
+			//$lineCount = max($this->flowingBlockAttr['lineCount'], 0); 
+			$linesRequired = (max($this->flowingBlockAttr['lineCount'], 0) + 1);  
 		}
 
 		$lineHeight = max($this->divheight, $this->flowingBlockAttr['height']);
