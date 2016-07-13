@@ -7657,8 +7657,21 @@ class mPDF
 		 */
 		$mock = clone $this;
         // MARKHERE
-        $this->debugLog("CONTENT WITH: " . $mock->flowingBlockAttr['contentWidth'] . " maxWidth: " . $mock->flowingBlockAttr['width'] . " stackHeight: " . $mock->flowingBlockAttr['height'], "yellow");
+        $this->debugLog("CONTENT WITH: " .
+            $mock->flowingBlockAttr['contentWidth'] .
+            " maxWidth: " .
+            $mock->flowingBlockAttr['width'] .
+            " stackHeight: " .
+            $mock->flowingBlockAttr['height'], "yellow");
 		$mock->WriteFlowingBlock($s, $sOTLdata, true);
+
+        // TODO: MARKHERE  - this works in conjuction with code in lines
+        //  8791 - 8803  
+        if ($mock->flowingBlockAttr['hasBreakTag'] == true) {
+            $this->debugLog("IM RETURN BR as LINECOUNT!!!!!!!", "yellow");
+            return "br";
+        }
+
 		$lineCount = $mock->flowingBlockAttr['lineCount']; 
         // if lineCount is zero, convert width to fraction and add to the existing count.
         if ($lineCount == 0) {
@@ -7683,6 +7696,30 @@ class mPDF
 		return $lineCount;
 	}
 
+	function EstimateFinishFlowingBlock()
+	{
+
+		/**
+		 * We will run the writes on a cloned version of the
+		 * current document so that we can estimate how many lines
+		 * are required before actually printing the lines
+		 */
+		$lineCount = $this->flowingBlockAttr['lineCount']; 
+        $this->debugLog("CURRENT BLOCK LINECOUNT: $lineCount", "yellow");
+		$mock = clone $this;
+		$mock->finishFlowingBlock(true);
+
+
+		$lineCount = $mock->flowingBlockAttr['lineCount']; 
+        // if lineCount is zero, convert width to fraction and add to the existing count.
+        if ($lineCount == 0) {
+            $lineCount = ($mock->flowingBlockAttr['contentWidth']/$mock->flowingBlockAttr['width']);
+        }
+        $this->debugLog("AFTER BLOCK LINECOUNT: $lineCount", "yellow");
+
+        return $lineCount;
+	}
+
 	function WriteFlowingBlock($s, $sOTLdata, $draft = false)
 	{ // mPDF 5.7.1
 		$this->x = ($this->flowingBlockAttr['newX']) ? $this->flowingBlockAttr['newX'] : $this->x;
@@ -7704,6 +7741,7 @@ class mPDF
 		$valign = & $this->flowingBlockAttr['valign'];
 		$blockstate = $this->flowingBlockAttr['blockstate'];
 		$cOTLdata = & $this->flowingBlockAttr['cOTLdata']; // mPDF 5.7.1
+        $this->flowingBlockAttr['hasBreakTag'] = false;
 
 		$newblock = $this->flowingBlockAttr['newblock'];
 		$blockdir = $this->flowingBlockAttr['blockdir'];
@@ -8747,6 +8785,9 @@ class mPDF
 				$hanger = '';
 			} else {
 			    // another character will fit, so add it on
+				$contentWidth += $cw;
+				$currContent .= $c;
+                // in case of carriage return
                 if (preg_match('~\R~', $s)) {
                     // if this is a carraige return increase lineCount
                     // this can be an issue indicating that there are several paragraphs in a single <p> tag
@@ -8756,11 +8797,10 @@ class mPDF
                     // possibly the break could be used to reset the line count, but this can't always be trusted
                     //
                     // the best solution, however, is correct the html and use separate <p> tags for each paragraph
-                    $this->debugLog("THERE IS A <br> in this block", "yellow");
-                    $lineCount++;
+                    $lineCount = floor($lineCount) + 1;
+		            $this->flowingBlockAttr['hasBreakTag'] = true;
+                    $this->debugLog("THERE IS A <br> in this block.  Content width is: $contentWidth, lineCount is: $lineCount", "yellow");
                 }
-				$contentWidth += $cw;
-				$currContent .= $c;
 			}
 		}
 
@@ -16004,6 +16044,7 @@ class mPDF
 	// mPDF 6
 	function hyphenateWord($word, $currptr)
 	{
+        $this->debugLog("Attempting to HYPHENATE $word at $currptr", "yellow");
 		// Do everything inside this function in utf-8
 		// Don't hyphenate web addresses
 		if (preg_match('/^(http:|www\.)/', $word)) {
@@ -16040,11 +16081,14 @@ class mPDF
 		}
 
 		if (!in_array($this->SHYlang, $this->SHYlanguages)) {
+            $this->debugLog("Exiting hyphenateWord without loading patterns", "yellow");
 			return -1;
 		}
 		// If no pattern loaded or not the best one
 		if (count($this->SHYpatterns) < 1 || ($this->loadedSHYpatterns && $this->loadedSHYpatterns != $this->SHYlang)) {
-			include(_MPDF_PATH . "patterns/" . $this->SHYlang . ".php");
+            $patternsInclude = _MPDF_PATH . "patterns/" . $this->SHYlang . ".php";
+            $this->debugLog("Loading patterns from $patternsInclude", "yellow");
+			include($patternsInclude);
 			$patterns = explode(' ', $patterns);
 			$new_patterns = array();
 			for ($i = 0; $i < count($patterns); $i++) {
@@ -16082,6 +16126,7 @@ class mPDF
 
 		if (isset($this->SHYdictionaryWords[mb_strtolower($word)])) {
 			foreach ($this->SHYdictionaryWords[mb_strtolower($word)] AS $i) {
+                $this->debugLog("Testing hyphen pattern matching with SHYdictionaryWords: $i", "yellow");
 				if (($i + $preprelen) >= $currptr) {
 					break;
 				}
@@ -16100,6 +16145,7 @@ class mPDF
 				$maxwins = min(($word_length - $position), $this->SHYcharmax);
 				for ($win = $this->SHYcharmin; $win <= $maxwins; $win++) {
 					if (isset($this->SHYpatterns[mb_substr($text_word, $position, $win, 'UTF-8')])) {
+                        $this->debugLog("Testing hyphen pattern matching with SHYpatterns: " . $this->SHYpatterns[mb_substr($text_word, $position, $win, 'UTF-8')], "yellow");
 						$pattern = $this->SHYpatterns[mb_substr($text_word, $position, $win, 'UTF-8')];
 						$digits = 1;
 						$pattern_length = mb_strlen($pattern, 'UTF-8');
@@ -19024,17 +19070,26 @@ class mPDF
 				// get line estimates
                 // DO NOT break up tables
                 if (!$this->flowingBlockAttr['is_table']) {
-				    $linesRequired += $this->EstimateFlowingBlockWriteLines($vetor[0], $vetor[18]);
+                    $estimatedLines = $this->EstimateFlowingBlockWriteLines($vetor[0], $vetor[18]);
+                    if ($estimatedLines == "br") {
+                        // clear out the partial line heights and set to 1
+                        $linesRequired = floor($linesRequired) + 1;
+                    } else {
+				        $linesRequired += $estimatedLines;
+                    }
 				    $this->debugLog("\n\nvetor0: " . print_r($vetor[0], true) . "\n");
 
                     // MARKHERE add lines if finishFlowingBlock would have been called
                     if ($i == ($array_size - 1)) {
+                        // TODO: MARKHERE - in some cases we shouldn't add a line here
+                        // we need to do a draft check of finishFlowingBlock here
+                        $estimatedFinishLines = $this->EstimateFinishFlowingBlock();
                         $linesRequired++;
-                        $this->debugLog("THis SHOULD be the last write block so adding 1 last line here", "yellow");
+                        $this->debugLog("This SHOULD be the last write block so adding 1 last line here", "yellow");
                     }
                 }
 			}
-            $linesRequired = round($linesRequired);
+            $linesRequired = ceil($linesRequired);
 			$this->debugLog("  Writes in this Block: $array_size, Lines in this Block: $linesRequired");
 
 			/**
@@ -32053,7 +32108,10 @@ class mPDF
 	 **/
 	function getPageBlockSpaceAvailable()
 	{
-	   return ($this->PageBreakTrigger - $this->flowingBlockAttr['starts_y']);
+        //$this->debugLog("flowingBlockAttr: " . print_r($this->flowingBlockAttr, true), "yellow");
+        //$this->debugLog("blk: " . print_r($this->blk[$this->blklvl], true), "yellow");
+        $this->debugLog("starts_y: " . $this->flowingBlockAttr['starts_y'] . " margBuffer: " . $this->margBuffer . " bMargin: " . $this->bMargin, "yellow");
+	    return (($this->PageBreakTrigger - $this->flowingBlockAttr['starts_y']) - ($this->margBuffer * 2));
 	}
 
 	/**
@@ -32066,6 +32124,7 @@ class mPDF
 		$spaceAvailable = $this->getPageBlockSpaceAvailable();
 
 		$lineHeight = ($lineHeight) ? $lineHeight : $this->normalLineheight;
+        $this->debugLog("lineHeight debug: lineHeight: $lineHeight, divheight: " . $this->divheight . " flowingBlockHeight: " . $this->flowingBlockAttr['height'] . " normalLineheight: " . $this->normalLineheight, "yellow");
 		return floor($spaceAvailable / $lineHeight);
 	}
 
@@ -32300,6 +32359,7 @@ class mPDF
 			return false;
 		}
 
+        // TODO: MARKHERE - this might have to be changed to <= 
         if (($linesRequired > 0) && ($linesRequired < ($this->minOrphanLines + $this->minWidowLines))) {
 
             // if we are pre-processing, determine if we will create too much white space with this orphan adjustment
