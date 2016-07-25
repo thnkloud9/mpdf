@@ -6500,7 +6500,7 @@ class mPDF
 		$contentWidth = 0;
 
 		foreach ($content as $k => $chunk) {
-			$this->debugLog("CHUNK: " . $chunk, "red");
+			$this->debugLog("--FINISH CHUNK: " . $chunk, "red");
 			$this->restoreFont($font[$k], false);
 			if (!isset($this->objectbuffer[$k]) || (isset($this->objectbuffer[$k]) && !$this->objectbuffer[$k])) {
 				// Soft Hyphens chr(173)
@@ -7656,6 +7656,18 @@ class mPDF
 		$mock->WriteFlowingBlock($s, $sOTLdata, true);
 		$lineCount = $mock->flowingBlockAttr['lineCount']; 
 
+        // if there was a hard coded break in this write block
+        // don't add the partial widths
+        if ($mock->flowingBlockAttr['hasBreakTag'] == true) {
+            $this->debugLog("----------------------------------------DONE WITH WRITE BLOCK ESTIMATE: BR", "yellow");
+            return "br";
+        }
+
+        // if lineCount is zero, convert width to fraction and add to the existing count.
+        if ($lineCount == 0) {
+            $lineCount = ($mock->flowingBlockAttr['contentWidth']/$mock->flowingBlockAttr['width']);
+        }
+
 		$BeforeCol = $this->CurrCol;
 		$AfterCol = $mock->CurrCol;
 		$ChangeCol = $mock->ChangeCol;
@@ -7669,12 +7681,9 @@ class mPDF
 			$this->flowingBlockAttr['expect_col_change'] = true;
 		}
 
-        // a page break was added in drafting, so lets add it now
-        if ($mock->flowingBlockAttr['orphan_break_added']) {
-            $this->debugLog("----------------------------------------MOCK Added a Page Here", "yellow");
-        }
-        
 		$this->flowingBlockAttr['expected_lines'] += $lineCount;
+
+        $this->debugLog("----------------------------------------DONE WITH WRITE BLOCK ESTIMATE: $lineCount", "yellow");
 
 		return $lineCount;
 	}
@@ -7703,6 +7712,7 @@ class mPDF
 
 		$newblock = $this->flowingBlockAttr['newblock'];
 		$blockdir = $this->flowingBlockAttr['blockdir'];
+        $this->flowingBlockAttr['hasBreakTag'] = false;
 
 		if ($draft) {
 			$this->debugLog("	Drafting Flow Block || PAGE: " . $this->page . " || X: " . $this->x . " || Y: " . $this->y);
@@ -8745,6 +8755,7 @@ class mPDF
 			    // another character will fit, so add it on
                 if (preg_match('~\R~', $s)) {
                     // if this is a carraige return increase lineCount
+		            $this->flowingBlockAttr['hasBreakTag'] = true;
                     $this->debugLog("THERE IS A <br> in this block", "yellow");
                     $lineCount++;
                 }
@@ -16021,7 +16032,7 @@ class mPDF
 						$offset = $p + 1;
 					}
 					if (count($poss)) {
-						$this->SHYdictionaryWords[str_replace('/', '', mb_strtolower($entry))] = $poss;
+								$this->SHYdictionaryWords[str_replace('/', '', mb_strtolower($entry))] = $poss;
 					}
 				}
 			}
@@ -16042,6 +16053,7 @@ class mPDF
 			}
 			$this->SHYpatterns = $new_patterns;
 			$this->loadedSHYpatterns = $this->SHYlang;
+
 		}
 
 		if ($this->usingCoreFont) {
@@ -16085,6 +16097,7 @@ class mPDF
 			$text_word = mb_strtolower($text_word, 'UTF-8');
 			$hyphenated_word = array();
 			$numb3rs = array('0' => true, '1' => true, '2' => true, '3' => true, '4' => true, '5' => true, '6' => true, '7' => true, '8' => true, '9' => true);
+
 			for ($position = 0; $position <= ($word_length - $this->SHYcharmin); $position++) {
 				$maxwins = min(($word_length - $position), $this->SHYcharmax);
 				for ($win = $this->SHYcharmin; $win <= $maxwins; $win++) {
@@ -16104,6 +16117,7 @@ class mPDF
 					}
 				}
 			}
+
 			for ($i = $this->SHYleftmin; $i <= (mb_strlen($word, 'UTF-8') - $this->SHYrightmin); $i++) {
 				if (isset($hyphenated_word[$i]) && $hyphenated_word[$i] % 2 != 0) {
 					if (($i + $preprelen) > $currptr) {
@@ -18922,6 +18936,7 @@ class mPDF
 
 		// Added - Otherwise <div><div><p> did not output top margins/padding for 1st/2nd div
 		if ($array_size == 0) {
+            $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 			$this->finishFlowingBlock(true);
 		} // true = END of flowing block
 		// mPDF 6
@@ -19012,10 +19027,28 @@ class mPDF
 				// get line estimates
                 // DO NOT break up tables
                 if (!$this->flowingBlockAttr['is_table']) {
-				    $linesRequired += $this->EstimateFlowingBlockWriteLines($vetor[0], $vetor[18]);
+				    $estimatedLines = $this->EstimateFlowingBlockWriteLines($vetor[0], $vetor[18]);
+                    if ($estimatedLines == "br") {
+                        // clear out the partial line heights and set to 1
+                        $linesRequired = floor($linesRequired) + 1;
+				        $this->debugLog("--------------------------------BR: added $linesRequired");
+                    } else {
+				        $linesRequired += $estimatedLines;
+				        $this->debugLog("--------------------------------NON BR: added $linesRequired");
+                    }
 				    $this->debugLog("\n\nvetor0: " . print_r($vetor[0], true) . "\n");
                 }
+    
+                // add lines that would be printed if finishFlowingBlock would have been called
+                if ($i == ($array_size - 1)) {
+				    if ($vetor[0] != "\n") { //We are reading a <BR> now turned into newline ("\n")
+                        $linesRequired++;
+				        $this->debugLog("--------------------------------FINISH HAS CONTENT, vetor0: " . print_r($vetor[0], true) . "\n");
+                    }
+				    $this->debugLog("--------------------------------FINISH: added $linesRequired");
+                }
 			}
+            $linesRequired = ceil($linesRequired);
 			$this->debugLog("  Writes in this Block: $array_size, Lines in this Block: $linesRequired");
 
 			/**
@@ -19062,6 +19095,7 @@ class mPDF
 			if (empty($vetor[0]) && !($vetor[0] === '0') && empty($vetor[7])) { //Ignore empty text and not carrying an internal link
 				//Check if it is the last element. If so then finish printing the block
 				if ($i == ($array_size - 1)) {
+                    $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 					$this->finishFlowingBlock(true);
 				} // true = END of flowing block
 				continue;
@@ -19135,6 +19169,7 @@ class mPDF
 				if (empty($vetor[0])) { //Ignore empty text
 					//Check if it is the last element. If so then finish printing the block
 					if ($i == ($array_size - 1)) {
+                        $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 						$this->finishFlowingBlock(true);
 					} // true = END of flowing block
 					continue;
@@ -19183,10 +19218,12 @@ class mPDF
 						if ($table_draft) {
 							$this->y += $this->table[($level + 1)][$objattr['nestedcontent']]['h']; // nested table height
 							$this->debugLog("Setting y to: " . $this->y, "red");
+                            $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 							$this->finishFlowingBlock(false, 'nestedtable');
 						} else {
 
 							$cell = &$table['cells'][$objattr['row']][$objattr['col']];
+                            $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 							$this->finishFlowingBlock(false, 'nestedtable');
 							$save_dw = $this->divwidth;
 							$save_buffer = $this->cellBorderBuffer;
@@ -19258,6 +19295,7 @@ class mPDF
 					$oldpage = $this->page;
 					$this->OldCol = $this->CurrCol;
 					if (($skipln == 1 || $skipln == -2) && !isset($objattr['float'])) {
+                        $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 						$this->finishFlowingBlock(false, $objattr['type']);
 						$this->debugLog('newFlowingBlock starts here', "yellow"); 
 						$this->newFlowingBlock($this->divwidth, $this->divheight, $align, $is_table, $blockstate, false, $blockdir, $table_draft);
@@ -19462,6 +19500,7 @@ class mPDF
 
 				if ($vetor[0] == "\n") { //We are reading a <BR> now turned into newline ("\n")
 					if ($this->flowingBlockAttr['content']) {
+                        $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 						$this->finishFlowingBlock(false, 'br');
 					} elseif ($is_table) {
 						$this->y+= $this->_computeLineheight($this->cellLineHeight);
@@ -19536,6 +19575,7 @@ class mPDF
 
 			//Check if it is the last element. If so then finish printing the block
 			if ($i == ($array_size - 1)) {
+                $this->debugLog("-------------------------------Calling finishFlowingBlock from here", "yellow");
 				$this->finishFlowingBlock(true); // true = END of flowing block
 
 				// Added to correct for OddEven Margins
